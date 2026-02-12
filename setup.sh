@@ -19,39 +19,36 @@ done
 mkdir -p $RUNTIME_DIR || fail "Failed to prepare RUNTIME_DIR"
 cp $PYTHON_PROG "$RUNTIME_DIR/" || fail "Failed to copy python program"
 cp $ENV_FILE "$RUNTIME_DIR/" || fail "Failed to copy python program"
+echo "" > $CRON_LOG
 success "Set up runtime DIR"
 
-curl -k $TASKS_END_POINT -o $TASKS || fail "Could not CURL $TASKS_END_POINT"
+curl -sk $TASKS_END_POINT -o $TASKS || fail "Could not CURL $TASKS_END_POINT"
 success "Obtained data from api endpoint"
 
+GROUP_ID=3
 if [[ "$TEST" = "True" ]]; then
-    warn "TESTING MODE"
-    ls -l $RUNTIME_DIR || fail "Error in ls -l: $RUNTIME_DIR"
+    success "TEST mode: using GROUP_ID=${GROUP_ID}"
+else
+    while true; do
+        read -p "Which group do you belong to? " GROUP_ID
+        if ! [[ "$GROUP_ID" =~ ^[0-9]+$ ]]; then
+            echo "Group ID must be a number."
+            continue
+        fi
+        read -p "You entered Group ID '$GROUP_ID'. Is this correct? (y/n): " CONFIRM
+        case "$CONFIRM" in
+            y|Y) break ;;
+            n|N) echo "Let's try again." ;;
+            *)   echo "Please answer y or n." ;;
+        esac
+    done
+    success "Confirmed Group ID: $GROUP_ID"
 fi
 
-while true; do
-    read -p "Which group do you belong to? " GROUP_ID
-    if ! [[ "$GROUP_ID" =~ ^[0-9]+$ ]]; then
-        echo "Group ID must be a number."
-        continue
-    fi
-    read -p "You entered Group ID '$GROUP_ID'. Is this correct? (y/n): " CONFIRM
-    case "$CONFIRM" in
-        y|Y)
-            break
-            ;;
-        n|N)
-            echo "Let's try again."
-            ;;
-        *)
-            echo "Please answer y or n."
-            ;;
-    esac
-done
 success "Confirmed Group ID: $GROUP_ID"
 echo "GROUP_ID=${GROUP_ID}" >> "$RUNTIME_ENV"
 
-APT_PACKAGES=( python3 )
+APT_PACKAGES=( python3 openssl ca-certificates)
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq && success "Lists updated" || fail "Apt update failed"
 if apt-get install -y -qq "${APT_PACKAGES[@]}" > /dev/null 2>&1; then
@@ -60,13 +57,14 @@ else
     fail "Failed to install system packages."
 fi
 
+L_COMMAND="/usr/bin/python3 ${LAUNCHER} $GROUP_ID ${TASKS} ${UPDATE_END_POINT} ${TEST}"
 
-
-LAUNCHER_CMD="*/5 * * * * root /usr/bin/python3 ${LAUNCHER} $GROUP_ID ${TASKS} ${WEB_SERVER} >> ${CRON_LOG} 2>&1"
+LAUNCHER_CMD="*/5 * * * * root ${L_COMMAND} >> ${CRON_LOG} 2>&1"
 CURL_CMD="0 0 * * * root /usr/bin/curl -k ${TASKS_END_POINT} -o ${TASKS}"
 {
   echo "SHELL=/bin/bash"
   echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  echo "source $RUNTIME_ENV"
   echo "GROUP_ID=${GROUP_ID}"
   echo "$LAUNCHER_CMD"
   echo "$CURL_CMD"
@@ -76,13 +74,22 @@ chmod 0644 "$CRON_FILE" || fail "Failed to set permissions on $CRON_FILE"
 
 if [[ "$TEST" = "True" ]]; then
     warn "TESTING MODE"
+    echo "${L_COMMAND}" || fail "in echo - $L_COMMAND -"
+    ls -l $RUNTIME_DIR || fail "Error in ls -l: $RUNTIME_DIR"
+    chmod -R 777 $RUNTIME_DIR || fail "Error in chmod"
     cat "$CRON_FILE" || fail "Error in cat: $CRON_FILE"
 fi
 
 success "Cron job added in $CRON_FILE"
 
+if [[ "$TEST" = "False" ]]; then
+    #rm -rf $ORIG_DIR && success "Installtion fully done." || fail "Couldnt auto delete itself"
+    warn "PROD AUTO-DESTRUCTION"
+fi
 
-
-
-
-#rm -rf $ORIG_DIR && success "Installtion fully done."
+if [[ "$TEST" = "True" ]]; then
+    warn "Executing L_COMMAND"
+    rm /var/log/clientservice.log
+    $L_COMMAND
+    cat /var/log/clientservice.log
+fi
