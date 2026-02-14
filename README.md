@@ -1,7 +1,12 @@
 # ClientService
 Client Application of Checklist repo to send updates commands of tasks to server
 
+## Installtion
 
+For installtion execute the following commands.
+```bash
+sudo git clone https://github.com/GuillermoLopezEsteve/ClientService.git && sudo bash ClientService/setup.sh
+```
 ## Warning: Intentionally Unsafe
 
 ⚠️ **SECURITY WARNING**
@@ -13,3 +18,5 @@ As currently implemented, it is **trivial to achieve Remote Code Execution (RCE)
 
 This code is provided **strictly for educational and research purposes only**.  
 Never expose this service to the internet.
+
+
