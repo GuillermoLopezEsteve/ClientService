@@ -17,7 +17,7 @@ for v in RUNTIME_DIR WEB_SERVER RUNTIME_ENV LAUNCHER TASKS CRON_LOG TASKS_END_PO
 done
 
 mkdir -p $RUNTIME_DIR || fail "Failed to prepare RUNTIME_DIR"
-cp $PYTHON_PROG "$RUNTIME_DIR/" || fail "Failed to copy python program"
+cp $ORIG_DIR/$PYTHON_PROG "$RUNTIME_DIR/" || fail "Failed to copy python program"
 cp $ENV_FILE "$RUNTIME_DIR/" || fail "Failed to copy python program"
 echo "" > $CRON_LOG
 success "Set up runtime DIR"
@@ -78,13 +78,13 @@ if [[ "$TEST" = "True" ]]; then
     ls -l $RUNTIME_DIR || fail "Error in ls -l: $RUNTIME_DIR"
     chmod -R 777 $RUNTIME_DIR || fail "Error in chmod"
     cat "$CRON_FILE" || fail "Error in cat: $CRON_FILE"
+    echo "${L_COMMAND}" > $RUNTIME_DIR/try_command
 fi
 
 success "Cron job added in $CRON_FILE"
 
 if [[ "$TEST" = "False" ]]; then
-    #rm -rf $ORIG_DIR && success "Installtion fully done." || fail "Couldnt auto delete itself"
-    warn "PROD AUTO-DESTRUCTION"
+    rm -rf $ORIG_DIR || fail "Couldnt auto delete itself"
 fi
 
 if [[ "$TEST" = "True" ]]; then
@@ -93,3 +93,5 @@ if [[ "$TEST" = "True" ]]; then
     $L_COMMAND
     cat /var/log/clientservice.log
 fi
+
+success "Installation done."

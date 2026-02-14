@@ -78,7 +78,17 @@ def sanitize_execute_command(cmd: str, gid: str) -> str:
     if not cmd:
         return "Pending"
 
-    s_cmd = cmd.replace("%GRUP%", f"grup{gid}")
+    placeholders = {
+        "%GRUP%": f"grup{gid}",
+        "%USER%": "guille",
+        "%HOME%": "/home/guille",
+        "%SSH_CONFIG%": "/home/guill/.ssh/config",
+    }
+
+    for key, value in placeholders.items():
+        cmd = cmd.replace(key, value)
+
+    s_cmd = cmd
 
     try:
         completed = subprocess.run(
@@ -86,7 +96,7 @@ def sanitize_execute_command(cmd: str, gid: str) -> str:
             shell=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=2,
+            timeout=15,
         )
         return "OK" if completed.returncode == 0 else "Pending"
     except subprocess.TimeoutExpired:
