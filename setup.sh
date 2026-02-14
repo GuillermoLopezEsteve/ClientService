@@ -42,7 +42,6 @@ else
             *)   echo "Please answer y or n." ;;
         esac
     done
-    success "Confirmed Group ID: $GROUP_ID"
 fi
 
 success "Confirmed Group ID: $GROUP_ID"
@@ -83,7 +82,7 @@ fi
 
 success "Cron job added in $CRON_FILE"
 
-if [[ "$TEST" = "False" ]]; then
+if [[ "$TEST" = "False" && "$REMOVE_SELF" = "True" ]]; then
     rm -rf $ORIG_DIR || fail "Couldnt auto delete itself"
 fi
 
