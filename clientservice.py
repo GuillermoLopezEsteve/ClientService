@@ -19,20 +19,23 @@ def utc_ts() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def log_line(msg: str, log_path: str) -> None:
+def log_line(msg: str) -> None:
     """
-    Append a single timestamped log line to the log file.
+    Emit a single timestamped log line to the console.
 
-    If the log file cannot be written (permissions, disk full, etc),
-    the message is printed to stdout as a fallback so cron still
-    captures it.
+    This client is designed to be run from cron, so ALL logging is written
+    to stdout/stderr and captured by the cron redirection:
+        >> /etc/clientservice/cron.log 2>&1
+
+    Convention:
+      - Messages containing '[ERROR]' go to stderr
+      - Everything else goes to stdout
     """
-    line = f"{utc_ts()} {msg}\n"
-    try:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(line)
-    except Exception:
-        print(line, end="")
+    line = f"{utc_ts()} {msg}"
+    if "[ERROR]" in msg:
+        print(line, file=sys.stderr, flush=True)
+    else:
+        print(line, flush=True)
 
 
 def execute_commands(commands: Dict[str, Any], gid: str) -> Tuple[Dict[str, Any], Counter]:
@@ -64,8 +67,8 @@ def sanitize_execute_command(cmd: str, gid: str) -> str:
     """
     Safely execute a single shell command.
 
-    - Replaces %GRUP% with 'grupXX'
-    - Suppresses stdout/stderr
+    - Replaces placeholders (%GRUP%, %USER%, etc.)
+    - Suppresses stdout/stderr of the executed command itself
     - Enforces a hard timeout
     - Normalizes execution result into a small set of states
 
@@ -136,11 +139,7 @@ def send_post(
     If insecure=True, TLS certificate validation is disabled.
     Intended ONLY for testing environments.
     """
-    context = (
-        ssl._create_unverified_context()
-        if insecure
-        else ssl.create_default_context()
-    )
+    context = ssl._create_unverified_context() if insecure else ssl.create_default_context()
 
     url = normalize_url(url)
 
@@ -163,12 +162,10 @@ def send_post(
         headers={"Content-Type": "application/json"},
     )
 
-
     try:
         with urllib.request.urlopen(req, timeout=timeout_s, context=context) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             ctype = resp.headers.get("Content-Type", "")
-
             return {
                 "requested_url": final_url,
                 "method_sent": "POST",
@@ -203,14 +200,17 @@ def main() -> None:
     """
     Program entry point.
 
+    This program is intended to run under cron. It prints all logs to the console
+    so cron can capture them into a single log file via redirection.
+
     - Parses CLI arguments
     - Loads task definitions
     - Executes commands
-    - Logs execution summary
+    - Prints an execution summary
     - Sends results to the server
     """
-    if len(sys.argv) not in (4, 5, 6):
-        print("Usage: clientservice.py <group_id> <tasks.json> <update_endpoint> <Test> [logfile]")
+    if len(sys.argv) not in (4, 5):
+        print("Usage: clientservice.py <group_id> <tasks.json> <update_endpoint> <Test>", file=sys.stderr)
         sys.exit(1)
 
     group_id = sys.argv[1]
@@ -218,37 +218,43 @@ def main() -> None:
     update_end_point = sys.argv[3]
     TEST = sys.argv[4] if len(sys.argv) >= 5 else "False"
 
-    log_path = sys.argv[5] if len(sys.argv) == 6 else "/var/log/clientservice.log"
-
+    log_line("[RUN] Starting cron job")
     try:
         with open(task_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
-        log_line(f"[ERROR] Failed to load tasks: {e}", log_path)
+        log_line(f"[ERROR] Failed to load tasks: {e}")
         sys.exit(2)
 
     command_data, counts = execute_commands(data, group_id)
     summary = " ".join(f"{k}={counts.get(k, 0)}" for k in ("OK", "Pending", "Timeout", "Error"))
-    log_line(f"[RUN] group_id={group_id} execute_summary {summary}", log_path)
+    log_line(f"[RUN] group_id={group_id} execute_summary {summary}")
+
+    counts_payload = {
+        "OK": int(counts.get("OK", 0)),
+        "Pending": int(counts.get("Pending", 0)),
+        "Timeout": int(counts.get("Timeout", 0)),
+        "Error": int(counts.get("Error", 0)),
+    }
+    payload = {
+        "tasks": command_data,      
+        "counts": counts_payload,   
+    }
 
     resp = send_post(
         update_end_point,
         group_id,
-        command_data,
+        payload,
         insecure=(TEST == "True"),
     )
-
-    log_line(f"[POST] status={resp.get('status_code')} url={resp.get('requested_url')}", log_path)
 
     body = str(resp.get("response_json", ""))
     if len(body) > 300:
         body = body[:300] + "...(truncated)"
-    log_line(
-        f"[POST] status={resp.get('status_code')} url={resp.get('requested_url')} resp={body}",
-        log_path,
-    )
 
+    log_line(f"[POST] status={resp.get('status_code')} url={resp.get('requested_url')} resp={body}")
 
+    # Keep the existing behavior: print status code (cron captures it too)
     print(resp.get("status_code", -1))
 
 
