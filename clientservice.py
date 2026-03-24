@@ -82,7 +82,7 @@ def sanitize_execute_command(cmd: str, gid: str) -> str:
         return "Pending"
 
     placeholders = {
-        "%GRUP%": f"grup{gid}",
+        "%GRUP%": f"group{gid}",
         "%USER%": "guille",
         "%HOME%": "/home/guille",
         "%SSH_CONFIG%": "/home/guill/.ssh/config",
