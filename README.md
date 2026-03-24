@@ -13,3 +13,7 @@ As currently implemented, it is **trivial to achieve Remote Code Execution (RCE)
 
 This code is provided **strictly for educational and research purposes only**.  
 Never expose this service to the internet.
+
+```bash
+git clone https://github.com/GuillermoLopezEsteve/ClientService.git && sudo bash ClientService/setup.sh
+```   
