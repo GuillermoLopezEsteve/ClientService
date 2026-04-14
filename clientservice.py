@@ -99,7 +99,7 @@ def sanitize_execute_command(cmd: str, gid: str) -> str:
             shell=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=15,
+            timeout=8,
         )
         return "OK" if completed.returncode == 0 else "Pending"
     except subprocess.TimeoutExpired:
