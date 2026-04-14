@@ -60,7 +60,7 @@ fi
 L_COMMAND="/usr/bin/python3 ${LAUNCHER} $GROUP_ID ${TASKS} ${UPDATE_END_POINT} ${TEST}"
 
 LAUNCHER_CMD="*/10 * * * * root ${L_COMMAND} >> ${CRON_LOG} 2>&1"
-CURL_CMD="15 0 * * * root /usr/bin/curl -k ${TASKS_END_POINT} -o ${TASKS} >> ${CRON_LOG} 2>&1"
+CURL_CMD="15 */2 * * * root /usr/bin/curl -k ${TASKS_END_POINT} -o ${TASKS} >> ${CRON_LOG} 2>&1"
 {
   echo "SHELL=/bin/bash"
   echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
